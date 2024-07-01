@@ -1,0 +1,8 @@
+python-telegram-bot==13.13
+requests_toolbelt 
+pyparsing 
+git+https://github.com/Masterolic/pyrogram.git
+requests
+tqdm
+cloudscraper
+beautifulsoup4
