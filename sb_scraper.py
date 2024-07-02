@@ -272,7 +272,7 @@ for line in lines:
     line = line.strip()
     line_num+=1
     url = remove_country_subdomain(line)
-    if 'https://spankbang.party/' not in url and 'http://spankbang.party/' not in url:
+    if 'https://spankbang.com/' not in url and 'http://spankbang.com/' not in url:
         print("SpankBang is not in line " + str(line_num))
         print(url)
         continue
