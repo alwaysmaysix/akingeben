@@ -45,8 +45,14 @@ def dl(update: Update, context: CallbackContext):
                 
                 if video_files:
                     for video_file in video_files:
-                        with open(video_file, 'rb') as f:
-                            context.bot.send_video(chat_id=chat_id, video=f)
+                        # Use a context manager to open the file
+                        with open(video_file, 'rb') as video:
+                            # Send video with streaming support
+                            context.bot.send_video(
+                                chat_id=chat_id,
+                                video=video,
+                                supports_streaming=True  # Enable streaming support for large files
+                            )
                         os.remove(video_file)  # Optionally delete the video file after sending
                     update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
