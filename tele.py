@@ -1,10 +1,12 @@
 import os
 import subprocess
-from io import BytesIO
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 import logging
-from pyrogram import Client
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Enable logging
 logging.basicConfig(
@@ -16,6 +18,8 @@ logger = logging.getLogger(__name__)
 # Load API credentials from environment variables
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
+chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
+bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
@@ -42,9 +46,9 @@ def dl(update: Update, context: CallbackContext):
                 if video_files:
                     for video_file in video_files:
                         with open(video_file, 'rb') as f:
-                            context.bot.send_video(chat_id=update.message.chat.id, video=f)
+                            context.bot.send_video(chat_id=chat_id, video=f)
                         os.remove(video_file)  # Optionally delete the video file after sending
-                    update.message.reply_text(f'Downloaded videos from {url} sent.')
+                    update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
                     update.message.reply_text(f'No videos found after downloading from {url}.')
             else:
@@ -57,25 +61,20 @@ def dl(update: Update, context: CallbackContext):
         update.message.reply_text('Please provide a URL.')
 
 def main():
-    # Initialize the pyrogram client
-    app = Client("my_account", api_id=api_id, api_hash=api_hash)
+    # Initialize the updater and dispatcher
+    updater = Updater(bot_token)
+    
+    # Log bot start
+    logger.info('Starting the bot...')
+    
+    dp = updater.dispatcher
 
-    with app:
-        # Use the token provided
-        token = '7267061537:AAGcZOMma9SzGIpcSR8eBAKoQfoaAtmeuK4'
-        updater = Updater(token)
-        
-        # Log bot start
-        logger.info('Starting the bot...')
-        
-        dp = updater.dispatcher
+    # Add the /dl command handler
+    dp.add_handler(CommandHandler('dl', dl))
 
-        # Add the /dl command handler
-        dp.add_handler(CommandHandler('dl', dl))
-
-        # Start the bot
-        updater.start_polling()
-        updater.idle()
+    # Start the bot
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == '__main__':
     main()
