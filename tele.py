@@ -47,11 +47,12 @@ def dl(update: Update, context: CallbackContext):
                 if video_files:
                     for video_file in video_files:
                         # Use the user bot to send the video file
-                        userbot.send_video(
-                            chat_id=chat_id,
-                            video=video_file,
-                            supports_streaming=True  # Enable streaming support for large files
-                        )
+                        with open(video_file, 'rb') as video:
+                            userbot.send_video(
+                                chat_id=chat_id,
+                                video=video,
+                                supports_streaming=True  # Enable streaming support for large files
+                            )
                         os.remove(video_file)  # Optionally delete the video file after sending
                     update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
@@ -66,6 +67,8 @@ def dl(update: Update, context: CallbackContext):
         update.message.reply_text('Please provide a URL.')
 
 def main():
+    global userbot
+
     # Prompt the user to choose between using an existing session or creating a new one
     use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
 
