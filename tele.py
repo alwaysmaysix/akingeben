@@ -1,10 +1,11 @@
 import os
 import subprocess
 import logging
-from telegram import Update, InputFile
+from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -36,6 +37,16 @@ def download_progress_hook(stream, chunk, bytes_remaining):
     bytes_downloaded = total_size - bytes_remaining
     percentage = (bytes_downloaded / total_size) * 100
     print(f"Download progress: {percentage:.2f}%")
+
+async def upload_video(userbot, video_file, chat_id, context, message_id):
+    with open(video_file, 'rb') as video:
+        await userbot.send_video(
+            chat_id=chat_id,
+            video=video,
+            supports_streaming=True,  # Enable streaming support for large files
+            progress=upload_progress_callback,
+            progress_args=(context, message_id)
+        )
 
 def upload_progress_callback(current, total, context, message_id):
     """Update upload progress"""
@@ -70,14 +81,8 @@ def dl(update: Update, context: CallbackContext):
                         message_id = progress_message.message_id
                         
                         # Use the user bot to send the video file
-                        with open(video_file, 'rb') as video:
-                            userbot.send_video(
-                                chat_id=chat_id,
-                                video=video,
-                                supports_streaming=True,  # Enable streaming support for large files
-                                progress=upload_progress_callback,
-                                progress_args=(context, message_id)
-                            )
+                        asyncio.run(upload_video(userbot, video_file, chat_id, context, message_id))
+                        
                         os.remove(video_file)  # Optionally delete the video file after sending
                     update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
