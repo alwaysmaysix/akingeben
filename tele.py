@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 import logging
 from dotenv import load_dotenv
+from pyrogram import Client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,6 +21,11 @@ api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+userbot_session_string = os.getenv('USERBOT_SESSION_STRING')
+
+# Initialize the user bot (Client)
+userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
+userbot.start()
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
@@ -45,14 +51,12 @@ def dl(update: Update, context: CallbackContext):
                 
                 if video_files:
                     for video_file in video_files:
-                        # Use a context manager to open the file
-                        with open(video_file, 'rb') as video:
-                            # Send video with streaming support
-                            context.bot.send_video(
-                                chat_id=chat_id,
-                                video=video,
-                                supports_streaming=True  # Enable streaming support for large files
-                            )
+                        # Use the user bot to send the video file
+                        userbot.send_video(
+                            chat_id=chat_id,
+                            video=video_file,
+                            supports_streaming=True  # Enable streaming support for large files
+                        )
                         os.remove(video_file)  # Optionally delete the video file after sending
                     update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
@@ -84,3 +88,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    userbot.stop()  # Ensure the user bot is stopped when the main program exits
