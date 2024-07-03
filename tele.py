@@ -52,13 +52,11 @@ def dl(update: Update, context: CallbackContext):
                         try:
                             # Use the user bot to send the video file
                             with open(video_file, 'rb') as video:
-                                userbot.send_video(
-                                    chat_id=chat_id,
+                                update.message.reply_video(
                                     video=video,
-                                    supports_streaming=True  # Enable streaming support for large files
+                                    caption=f'Downloaded video from {url}'  # Optional caption
                                 )
                             os.remove(video_file)  # Optionally delete the video file after sending
-                            update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                         except errors.FloodWait as e:
                             logger.error(f"FloodWait error: {e}")
                             time.sleep(e.x)  # Wait before retrying
@@ -75,7 +73,6 @@ def dl(update: Update, context: CallbackContext):
             delete_input_file()  # Delete input.txt after processing
     else:
         update.message.reply_text('Please provide a URL.')
-
 def main():
     global userbot
 
