@@ -1,8 +1,8 @@
 import os
 import subprocess
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
 import logging
+from telegram import Update, InputFile
+from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client
 
@@ -30,6 +30,22 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
+def download_progress_hook(stream, chunk, bytes_remaining):
+    """Update download progress"""
+    total_size = stream.filesize
+    bytes_downloaded = total_size - bytes_remaining
+    percentage = (bytes_downloaded / total_size) * 100
+    print(f"Download progress: {percentage:.2f}%")
+
+def upload_progress_callback(current, total, context, message_id):
+    """Update upload progress"""
+    percentage = (current / total) * 100
+    context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=message_id,
+        text=f"Uploading: {percentage:.2f}%"
+    )
+
 def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
@@ -46,12 +62,21 @@ def dl(update: Update, context: CallbackContext):
                 
                 if video_files:
                     for video_file in video_files:
+                        # Send initial message for progress tracking
+                        progress_message = context.bot.send_message(
+                            chat_id=update.effective_chat.id,
+                            text="Uploading: 0.00%"
+                        )
+                        message_id = progress_message.message_id
+                        
                         # Use the user bot to send the video file
                         with open(video_file, 'rb') as video:
                             userbot.send_video(
                                 chat_id=chat_id,
                                 video=video,
-                                supports_streaming=True  # Enable streaming support for large files
+                                supports_streaming=True,  # Enable streaming support for large files
+                                progress=upload_progress_callback,
+                                progress_args=(context, message_id)
                             )
                         os.remove(video_file)  # Optionally delete the video file after sending
                     update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
