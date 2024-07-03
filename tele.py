@@ -5,6 +5,7 @@ from telegram.ext import Updater, CommandHandler, CallbackContext
 import logging
 from dotenv import load_dotenv
 from pyrogram import Client
+import getpass
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,10 +22,20 @@ api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-userbot_session_string = os.getenv('USERBOT_SESSION_STRING')
+
+def get_userbot_session():
+    choice = input("Do you want to use an existing Pyrogram session (yes/no)? ").strip().lower()
+    if choice == 'yes':
+        session_string = os.getenv('USERBOT_SESSION_STRING')
+        if not session_string:
+            raise ValueError("USERBOT_SESSION_STRING is not set in the environment variables.")
+        return Client("userbot", api_id=api_id, api_hash=api_hash, session_string=session_string)
+    else:
+        phone_number = input("Enter your phone number: ").strip()
+        return Client("userbot", api_id=api_id, api_hash=api_hash, phone_number=phone_number)
 
 # Initialize the user bot (Client)
-userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
+userbot = get_userbot_session()
 userbot.start()
 
 def create_input_file(url):
