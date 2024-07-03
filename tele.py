@@ -1,11 +1,10 @@
 import os
 import subprocess
 import logging
+from dotenv import load_dotenv
+from pyrogram import Client, errors
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
-from dotenv import load_dotenv
-from pyrogram import Client
-import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,36 +30,11 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-def download_progress_hook(stream, chunk, bytes_remaining):
-    """Update download progress"""
-    total_size = stream.filesize
-    bytes_downloaded = total_size - bytes_remaining
-    percentage = (bytes_downloaded / total_size) * 100
-    print(f"Download progress: {percentage:.2f}%")
-
-async def upload_video(userbot, video_file, chat_id, context, message_id):
-    with open(video_file, 'rb') as video:
-        await userbot.send_video(
-            chat_id=chat_id,
-            video=video,
-            supports_streaming=True,  # Enable streaming support for large files
-            progress=upload_progress_callback,
-            progress_args=(context, message_id)
-        )
-
-def upload_progress_callback(current, total, context, message_id):
-    """Update upload progress"""
-    percentage = (current / total) * 100
-    context.bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=message_id,
-        text=f"Uploading: {percentage:.2f}%"
-    )
-
 def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
         try:
+            logger.info(f"Starting download for URL: {url}")
             # Create input.txt with the URL
             create_input_file(url)
             
@@ -68,33 +42,42 @@ def dl(update: Update, context: CallbackContext):
             result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
             
             if result.returncode == 0:
+                logger.info("Download completed successfully")
                 # Assume videos are downloaded to the current directory by sb_scraper.py
                 video_files = [file for file in os.listdir() if file.endswith('.mp4')]
                 
                 if video_files:
                     for video_file in video_files:
-                        # Send initial message for progress tracking
-                        progress_message = context.bot.send_message(
-                            chat_id=update.effective_chat.id,
-                            text="Uploading: 0.00%"
-                        )
-                        message_id = progress_message.message_id
-                        
-                        # Use the user bot to send the video file
-                        asyncio.run(upload_video(userbot, video_file, chat_id, context, message_id))
-                        
-                        os.remove(video_file)  # Optionally delete the video file after sending
+                        try:
+                            logger.info(f"Uploading video file: {video_file}")
+                            with open(video_file, 'rb') as video:
+                                userbot.send_video(
+                                    chat_id=chat_id,
+                                    video=video,
+                                    supports_streaming=True  # Enable streaming support for large files
+                                )
+                            os.remove(video_file)  # Optionally delete the video file after sending
+                            logger.info(f"Uploaded and deleted video file: {video_file}")
+                        except errors.FloodWait as e:
+                            logger.warning(f"Flood wait error: Sleeping for {e.x} seconds")
+                            time.sleep(e.x)
+                        except Exception as e:
+                            logger.error(f"Failed to upload video {video_file}: {e}")
                     update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
                     update.message.reply_text(f'No videos found after downloading from {url}.')
+                    logger.warning(f'No videos found after downloading from {url}.')
             else:
                 update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
+                logger.error(f'Failed to download videos from {url}: {result.stderr}')
         except Exception as e:
             update.message.reply_text(f'Failed to download videos from {url}: {e}')
+            logger.error(f'Failed to download videos from {url}: {e}')
         finally:
             delete_input_file()  # Delete input.txt after processing
     else:
         update.message.reply_text('Please provide a URL.')
+        logger.warning('No URL provided.')
 
 def main():
     global userbot
