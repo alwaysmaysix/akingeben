@@ -1,10 +1,10 @@
 import os
 import subprocess
 import logging
-from dotenv import load_dotenv
-from pyrogram import Client, errors
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
+from dotenv import load_dotenv
+from pyrogram import Client, errors
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,22 +19,23 @@ logger = logging.getLogger(__name__)
 # Load API credentials from environment variables
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
-chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+
+# Define the user bot globally
+userbot = None
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
         f.write(url)
 
 def delete_input_file():
-    if os.path.exists('input.txt'):
+    if (os.path.exists('input.txt')):
         os.remove('input.txt')
 
 def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
         try:
-            logger.info(f"Starting download for URL: {url}")
             # Create input.txt with the URL
             create_input_file(url)
             
@@ -42,42 +43,37 @@ def dl(update: Update, context: CallbackContext):
             result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
             
             if result.returncode == 0:
-                logger.info("Download completed successfully")
                 # Assume videos are downloaded to the current directory by sb_scraper.py
                 video_files = [file for file in os.listdir() if file.endswith('.mp4')]
                 
                 if video_files:
                     for video_file in video_files:
                         try:
-                            logger.info(f"Uploading video file: {video_file}")
+                            # Use the user bot to send the video file
                             with open(video_file, 'rb') as video:
                                 userbot.send_video(
-                                    chat_id=chat_id,
+                                    chat_id=update.message.chat_id,  # Send to the same chat where the command was issued
                                     video=video,
                                     supports_streaming=True  # Enable streaming support for large files
                                 )
                             os.remove(video_file)  # Optionally delete the video file after sending
-                            logger.info(f"Uploaded and deleted video file: {video_file}")
+                            update.message.reply_text(f'Downloaded videos from {url} sent to the chat.')
                         except errors.FloodWait as e:
-                            logger.warning(f"Flood wait error: Sleeping for {e.x} seconds")
-                            time.sleep(e.x)
+                            logger.error(f"FloodWait error: {e}")
+                            time.sleep(e.x)  # Wait before retrying
                         except Exception as e:
-                            logger.error(f"Failed to upload video {video_file}: {e}")
-                    update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
+                            logger.error(f"Failed to send video: {e}")
+                            update.message.reply_text(f'Failed to send video: {e}')
                 else:
                     update.message.reply_text(f'No videos found after downloading from {url}.')
-                    logger.warning(f'No videos found after downloading from {url}.')
             else:
                 update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
-                logger.error(f'Failed to download videos from {url}: {result.stderr}')
         except Exception as e:
             update.message.reply_text(f'Failed to download videos from {url}: {e}')
-            logger.error(f'Failed to download videos from {url}: {e}')
         finally:
             delete_input_file()  # Delete input.txt after processing
     else:
         update.message.reply_text('Please provide a URL.')
-        logger.warning('No URL provided.')
 
 def main():
     global userbot
