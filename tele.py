@@ -5,7 +5,6 @@ from telegram.ext import Updater, CommandHandler, CallbackContext
 import logging
 from dotenv import load_dotenv
 from pyrogram import Client
-import getpass
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,21 +21,6 @@ api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-
-def get_userbot_session():
-    choice = input("Do you want to use an existing Pyrogram session (yes/no)? ").strip().lower()
-    if choice == 'yes':
-        session_string = os.getenv('USERBOT_SESSION_STRING')
-        if not session_string:
-            raise ValueError("USERBOT_SESSION_STRING is not set in the environment variables.")
-        return Client("userbot", api_id=api_id, api_hash=api_hash, session_string=session_string)
-    else:
-        phone_number = input("Enter your phone number: ").strip()
-        return Client("userbot", api_id=api_id, api_hash=api_hash, phone_number=phone_number)
-
-# Initialize the user bot (Client)
-userbot = get_userbot_session()
-userbot.start()
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
@@ -82,6 +66,22 @@ def dl(update: Update, context: CallbackContext):
         update.message.reply_text('Please provide a URL.')
 
 def main():
+    # Prompt the user to choose between using an existing session or creating a new one
+    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
+
+    if use_existing_session == 'yes':
+        userbot_session_string = input("Please enter the session string: ").strip()
+    else:
+        userbot_session_string = None
+
+    # Initialize the user bot (Client)
+    if userbot_session_string:
+        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
+    else:
+        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
+
+    userbot.start()
+
     # Initialize the updater and dispatcher
     updater = Updater(bot_token)
     
@@ -97,6 +97,7 @@ def main():
     updater.start_polling()
     updater.idle()
 
+    userbot.stop()  # Ensure the user bot is stopped when the main program exits
+
 if __name__ == '__main__':
     main()
-    userbot.stop()  # Ensure the user bot is stopped when the main program exits
