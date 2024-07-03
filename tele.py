@@ -54,7 +54,7 @@ def dl(update: Update, context: CallbackContext):
                                 userbot.send_video(
                                     chat_id=update.message.chat_id,  # Send to the same chat where the command was issued
                                     video=video,
-                                    supports_streaming=True  # Enable streaming support for large files
+                                     # Enable streaming support for large files
                                 )
                             os.remove(video_file)  # Optionally delete the video file after sending
                             update.message.reply_text(f'Downloaded videos from {url} sent to the chat.')
