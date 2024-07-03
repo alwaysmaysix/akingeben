@@ -1,10 +1,10 @@
 import os
 import subprocess
-import logging
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
+import logging
 from dotenv import load_dotenv
-from pyrogram import Client, errors
+from pyrogram import Client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,17 +19,20 @@ logger = logging.getLogger(__name__)
 # Load API credentials from environment variables
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
+chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+userbot_session_string = os.getenv('USERBOT_SESSION_STRING')
 
-# Define the user bot globally
-userbot = None
+# Initialize the user bot (Client)
+userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
+userbot.start()
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
         f.write(url)
 
 def delete_input_file():
-    if (os.path.exists('input.txt')):
+    if os.path.exists('input.txt'):
         os.remove('input.txt')
 
 def dl(update: Update, context: CallbackContext):
@@ -48,22 +51,14 @@ def dl(update: Update, context: CallbackContext):
                 
                 if video_files:
                     for video_file in video_files:
-                        try:
-                            # Use the user bot to send the video file
-                            with open(video_file, 'rb') as video:
-                                userbot.send_video(
-                                    chat_id=update.message.chat_id,  # Send to the same chat where the command was issued
-                                    video=video,
-                                     # Enable streaming support for large files
-                                )
-                            os.remove(video_file)  # Optionally delete the video file after sending
-                            update.message.reply_text(f'Downloaded videos from {url} sent to the chat.')
-                        except errors.FloodWait as e:
-                            logger.error(f"FloodWait error: {e}")
-                            time.sleep(e.x)  # Wait before retrying
-                        except Exception as e:
-                            logger.error(f"Failed to send video: {e}")
-                            update.message.reply_text(f'Failed to send video: {e}')
+                        # Use the user bot to send the video file
+                        userbot.send_video(
+                            chat_id=chat_id,
+                            video=video_file,
+                            supports_streaming=True  # Enable streaming support for large files
+                        )
+                        os.remove(video_file)  # Optionally delete the video file after sending
+                    update.message.reply_text(f'Downloaded videos from {url} sent to group/channel.')
                 else:
                     update.message.reply_text(f'No videos found after downloading from {url}.')
             else:
@@ -76,24 +71,6 @@ def dl(update: Update, context: CallbackContext):
         update.message.reply_text('Please provide a URL.')
 
 def main():
-    global userbot
-
-    # Prompt the user to choose between using an existing session or creating a new one
-    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
-
-    if use_existing_session == 'yes':
-        userbot_session_string = input("Please enter the session string: ").strip()
-    else:
-        userbot_session_string = None
-
-    # Initialize the user bot (Client)
-    if userbot_session_string:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
-    else:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
-
-    userbot.start()
-
     # Initialize the updater and dispatcher
     updater = Updater(bot_token)
     
@@ -109,7 +86,6 @@ def main():
     updater.start_polling()
     updater.idle()
 
-    userbot.stop()  # Ensure the user bot is stopped when the main program exits
-
 if __name__ == '__main__':
     main()
+    userbot.stop()  # Ensure the user bot is stopped when the main program exits
