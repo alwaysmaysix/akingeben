@@ -1,38 +1,40 @@
 import os
 import subprocess
 import logging
+import time
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Enable logging
+# Setup logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Load API credentials from environment variables
+# Load environment variables from .env file
+load_dotenv()
+
+# Telegram API credentials
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
-chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
-bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
-# Define the user bot globally
-userbot = None
+# Telegram Bot API credentials
+bot_token = os.getenv('TELEGRAM_BOT_API_KEY')
 
+# Function to create input file
 def create_input_file(url):
     with open('input.txt', 'w') as f:
         f.write(url)
 
+# Function to delete input file
 def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
+# Command handler for /dl
 def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
@@ -74,41 +76,39 @@ def dl(update: Update, context: CallbackContext):
     else:
         update.message.reply_text('Please provide a URL.')
 
-def main():
-    global userbot
-
-    # Prompt the user to choose between using an existing session or creating a new one
-    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
-
-    if use_existing_session == 'yes':
-        userbot_session_string = input("Please enter the session string: ").strip()
-    else:
-        userbot_session_string = None
-
-    # Initialize the user bot (Client)
-    if userbot_session_string:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
-    else:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
-
-    userbot.start()
-
-    # Initialize the updater and dispatcher
+# Function to start the bot and handle commands
+def start_bot():
     updater = Updater(bot_token)
-    
-    # Log bot start
-    logger.info('Starting the bot...')
-    
     dp = updater.dispatcher
 
-    # Add the /dl command handler
-    dp.add_handler(CommandHandler('dl', dl))
+    # Add command handlers
+    dp.add_handler(CommandHandler("dl", dl))
 
     # Start the bot
     updater.start_polling()
+    logger.info("Bot started polling.")
     updater.idle()
+    logger.info("Bot stopped gracefully.")
 
-    userbot.stop()  # Ensure the user bot is stopped when the main program exits
+# Function to start the Telegram API server
+def start_telegram_api():
+    # Run Telegram API server
+    server_process = subprocess.Popen(['./telegram-bot-api/bin/telegram-bot-api', 
+                                       '--api-id', api_id,
+                                       '--api-hash', api_hash])
+    logger.info("Telegram API server started.")
 
-if __name__ == '__main__':
-    main()
+    # Wait for the server process to finish
+    server_process.wait()
+    logger.info("Telegram API server stopped.")
+
+if __name__ == "__main__":
+    # Start Telegram API server in a separate thread or process
+    api_server_process = subprocess.Popen(['python', '-c', 'from __main__ import start_telegram_api; start_telegram_api()'])
+
+    # Start the bot
+    start_bot()
+
+    # Clean up and terminate the Telegram API server
+    api_server_process.terminate()
+    api_server_process.wait()
