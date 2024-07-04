@@ -78,24 +78,8 @@ def dl(update: Update, context: CallbackContext):
 def main():
     global userbot
 
-    # Prompt the user to choose between using an existing session or creating a new one
-    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
-
-    if use_existing_session == 'yes':
-        userbot_session_string = input("Please enter the session string: ").strip()
-    else:
-        userbot_session_string = None
-
-    # Initialize the user bot (Client)
-    if userbot_session_string:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
-    else:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
-
-    userbot.start()
-
-    # Initialize the updater and dispatcher
-    updater = Updater(bot_token)
+    # Initialize the updater and dispatcher with request_kwargs for local connection
+    updater = Updater(bot_token, request_kwargs={'proxy_url': 'http://0.0.0.0:8081'})
     
     # Log bot start
     logger.info('Starting the bot...')
@@ -108,8 +92,6 @@ def main():
     # Start the bot
     updater.start_polling()
     updater.idle()
-
-    userbot.stop()  # Ensure the user bot is stopped when the main program exits
 
 if __name__ == '__main__':
     main()
