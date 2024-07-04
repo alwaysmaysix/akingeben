@@ -1,40 +1,42 @@
 import os
 import subprocess
 import logging
-import time
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
 
-# Setup logging
+# Initialize Flask app
+app = Flask(__name__)
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Telegram API credentials
+# Load API credentials from environment variables
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
+bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 
-# Telegram Bot API credentials
-bot_token = os.getenv('TELEGRAM_BOT_API_KEY')
-
-# Function to create input file
+# Function to create input.txt with URL
 def create_input_file(url):
     with open('input.txt', 'w') as f:
         f.write(url)
 
-# Function to delete input file
+# Function to delete input.txt
 def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-# Command handler for /dl
+# Command handler for /dl command
 def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
@@ -54,7 +56,8 @@ def dl(update: Update, context: CallbackContext):
                         try:
                             # Use the user bot to send the video file
                             with open(video_file, 'rb') as video:
-                                update.message.reply_video(
+                                context.bot.send_video(
+                                    chat_id=update.effective_chat.id,
                                     video=video,
                                     caption=f'Downloaded video from {url}'  # Optional caption
                                 )
@@ -64,51 +67,44 @@ def dl(update: Update, context: CallbackContext):
                             time.sleep(e.x)  # Wait before retrying
                         except Exception as e:
                             logger.error(f"Failed to send video: {e}")
-                            update.message.reply_text(f'Failed to send video: {e}')
+                            context.bot.send_message(chat_id=update.effective_chat.id,
+                                                     text=f'Failed to send video: {e}')
                 else:
-                    update.message.reply_text(f'No videos found after downloading from {url}.')
+                    context.bot.send_message(chat_id=update.effective_chat.id,
+                                             text=f'No videos found after downloading from {url}.')
             else:
-                update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
+                context.bot.send_message(chat_id=update.effective_chat.id,
+                                         text=f'Failed to download videos from {url}: {result.stderr}')
         except Exception as e:
-            update.message.reply_text(f'Failed to download videos from {url}: {e}')
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text=f'Failed to download videos from {url}: {e}')
         finally:
             delete_input_file()  # Delete input.txt after processing
     else:
-        update.message.reply_text('Please provide a URL.')
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text='Please provide a URL.')
 
-# Function to start the bot and handle commands
-def start_bot():
+# Telegram webhook handler for receiving updates
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dp.process_update(update)
+    return 'ok'
+
+def main():
+    global bot
+
+    # Initialize the updater and dispatcher
     updater = Updater(bot_token)
+    bot = updater.bot
     dp = updater.dispatcher
 
-    # Add command handlers
-    dp.add_handler(CommandHandler("dl", dl))
+    # Add the /dl command handler
+    dp.add_handler(CommandHandler('dl', dl))
 
     # Start the bot
     updater.start_polling()
-    logger.info("Bot started polling.")
     updater.idle()
-    logger.info("Bot stopped gracefully.")
 
-# Function to start the Telegram API server
-def start_telegram_api():
-    # Run Telegram API server
-    server_process = subprocess.Popen(['./telegram-bot-api/bin/telegram-bot-api', 
-                                       '--api-id', api_id,
-                                       '--api-hash', api_hash])
-    logger.info("Telegram API server started.")
-
-    # Wait for the server process to finish
-    server_process.wait()
-    logger.info("Telegram API server stopped.")
-
-if __name__ == "__main__":
-    # Start Telegram API server in a separate thread or process
-    api_server_process = subprocess.Popen(['python', '-c', 'from __main__ import start_telegram_api; start_telegram_api()'])
-
-    # Start the bot
-    start_bot()
-
-    # Clean up and terminate the Telegram API server
-    api_server_process.terminate()
-    api_server_process.wait()
+if __name__ == '__main__':
+    main()
