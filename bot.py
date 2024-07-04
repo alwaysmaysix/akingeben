@@ -1,14 +1,11 @@
 import os
 import subprocess
 import logging
-from flask import Flask, request
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
-
-# Initialize Flask app
-app = Flask(__name__)
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,20 +20,20 @@ logger = logging.getLogger(__name__)
 # Load API credentials from environment variables
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
-bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
+bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
-# Function to create input.txt with URL
+# Define the user bot globally
+userbot = None
+
 def create_input_file(url):
     with open('input.txt', 'w') as f:
         f.write(url)
 
-# Function to delete input.txt
 def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-# Command handler for /dl command
 def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
@@ -56,8 +53,7 @@ def dl(update: Update, context: CallbackContext):
                         try:
                             # Use the user bot to send the video file
                             with open(video_file, 'rb') as video:
-                                context.bot.send_video(
-                                    chat_id=update.effective_chat.id,
+                                update.message.reply_video(
                                     video=video,
                                     caption=f'Downloaded video from {url}'  # Optional caption
                                 )
@@ -67,36 +63,43 @@ def dl(update: Update, context: CallbackContext):
                             time.sleep(e.x)  # Wait before retrying
                         except Exception as e:
                             logger.error(f"Failed to send video: {e}")
-                            context.bot.send_message(chat_id=update.effective_chat.id,
-                                                     text=f'Failed to send video: {e}')
+                            update.message.reply_text(f'Failed to send video: {e}')
                 else:
-                    context.bot.send_message(chat_id=update.effective_chat.id,
-                                             text=f'No videos found after downloading from {url}.')
+                    update.message.reply_text(f'No videos found after downloading from {url}.')
             else:
-                context.bot.send_message(chat_id=update.effective_chat.id,
-                                         text=f'Failed to download videos from {url}: {result.stderr}')
+                update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
         except Exception as e:
-            context.bot.send_message(chat_id=update.effective_chat.id,
-                                     text=f'Failed to download videos from {url}: {e}')
+            update.message.reply_text(f'Failed to download videos from {url}: {e}')
         finally:
             delete_input_file()  # Delete input.txt after processing
     else:
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text='Please provide a URL.')
-
-# Telegram webhook handler for receiving updates
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dp.process_update(update)
-    return 'ok'
+        update.message.reply_text('Please provide a URL.')
 
 def main():
-    global bot
+    global userbot
+
+    # Prompt the user to choose between using an existing session or creating a new one
+    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
+
+    if use_existing_session == 'yes':
+        userbot_session_string = input("Please enter the session string: ").strip()
+    else:
+        userbot_session_string = None
+
+    # Initialize the user bot (Client)
+    if userbot_session_string:
+        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
+    else:
+        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
+
+    userbot.start()
 
     # Initialize the updater and dispatcher
     updater = Updater(bot_token)
-    bot = updater.bot
+    
+    # Log bot start
+    logger.info('Starting the bot...')
+    
     dp = updater.dispatcher
 
     # Add the /dl command handler
@@ -105,6 +108,8 @@ def main():
     # Start the bot
     updater.start_polling()
     updater.idle()
+
+    userbot.stop()  # Ensure the user bot is stopped when the main program exits
 
 if __name__ == '__main__':
     main()
