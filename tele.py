@@ -6,6 +6,8 @@ from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
 from pyngrok import ngrok
+import threading
+from flask import Flask
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,6 +27,15 @@ bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
 # Define the user bot globally
 userbot = None
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Server is running"
+
+def run_flask_app():
+    app.run(port=3000)
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
@@ -112,7 +123,11 @@ def main():
     userbot.stop()  # Ensure the user bot is stopped when the main program exits
 
 if __name__ == '__main__':
-    # Start the ngrok tunnel for the public URL
+    # Start Flask server in a separate thread
+    threading.Thread(target=run_flask_app).start()
+    
+    # Start the ngrok tunnel after the Flask server is up and running
     public_url = ngrok.connect(3000)
     print(f'Public URL: {public_url}')
+    
     main()
