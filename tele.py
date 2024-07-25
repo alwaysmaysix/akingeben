@@ -1,13 +1,15 @@
 import os
 import subprocess
 import logging
+import time
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
 from pyngrok import ngrok
 import threading
-from flask import Flask
+from flask import Flask, request, send_file
+from telethon import TelegramClient, events
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +26,7 @@ api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+dummy_channel_id = os.getenv('DUMMY_CHANNEL_ID')
 
 # Define the user bot globally
 userbot = None
@@ -33,6 +36,24 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return "Server is running"
+
+@app.route('/download/<file_id>')
+def download_file(file_id):
+    try:
+        async def download():
+            async with TelegramClient('anon', api_id, api_hash) as client:
+                message = await client.get_messages(dummy_channel_id, ids=int(file_id))
+                if message and message.media:
+                    path = await message.download_media()
+                    return path
+        file_path = download()
+        if file_path:
+            return send_file(file_path, as_attachment=True)
+        else:
+            return "File not found", 404
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        return "Error downloading file", 500
 
 def run_flask_app():
     app.run(port=3000)
@@ -62,12 +83,15 @@ def dl(update: Update, context: CallbackContext):
                 if video_files:
                     for video_file in video_files:
                         try:
-                            # Use the user bot to send the video file
+                            # Use the user bot to send the video file to the dummy channel
                             with open(video_file, 'rb') as video:
-                                update.message.reply_video(
-                                    video=video,
-                                    caption=f'Downloaded video from {url}'  # Optional caption
-                                )
+                                message = userbot.send_document(dummy_channel_id, video)
+                                message_id = message.message_id
+
+                                # Provide the user with a link to download the file
+                                public_url = ngrok.connect(3000)
+                                download_link = f"{public_url}/download/{message_id}"
+                                update.message.reply_text(f'Download your video from {download_link}')
                             os.remove(video_file)  # Optionally delete the video file after sending
                         except errors.FloodWait as e:
                             logger.error(f"FloodWait error: {e}")
