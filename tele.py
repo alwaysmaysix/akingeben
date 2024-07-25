@@ -2,7 +2,7 @@ import os
 import subprocess
 import logging
 import time
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
@@ -10,6 +10,8 @@ from pyngrok import ngrok
 import threading
 from flask import Flask, request, send_file
 from telethon import TelegramClient, events
+from aiohttp import ClientSession
+from aiogram.client.telegram import TelegramAPIServer, AiohttpSession
 
 # Load environment variables from .env file
 load_dotenv()
@@ -129,8 +131,15 @@ def main():
 
     userbot.start()
 
-    # Initialize the updater and dispatcher
-    updater = Updater(bot_token)
+    # Custom API server configuration
+    custom_api_server = TelegramAPIServer.from_base('http://localhost:8082')
+    aiohttp_session = AiohttpSession(api=custom_api_server)
+
+    # Initialize the bot with the custom session
+    bot = Bot(token=bot_token, session=aiohttp_session)
+
+    # Initialize the updater and dispatcher with the custom bot
+    updater = Updater(bot=bot)
     
     # Log bot start
     logger.info('Starting the bot...')
