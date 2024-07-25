@@ -14,7 +14,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.telegram import TelegramAPIServer
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart  # Import Command
 from aiogram.types import Message
 
 # Load environment variables from .env file
