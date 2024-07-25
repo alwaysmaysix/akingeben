@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 from pyrogram import Client, errors
 from pyngrok import ngrok
 import threading
-from flask import Flask, request, send_file
-from telethon import TelegramClient, events
+from flask import Flask, send_file
 from aiohttp import ClientSession
 from aiogram.client.telegram import TelegramAPIServer, AiohttpSession
 
@@ -43,12 +42,12 @@ def home():
 def download_file(file_id):
     try:
         async def download():
-            async with TelegramClient('anon', api_id, api_hash) as client:
-                message = await client.get_messages(dummy_channel_id, ids=int(file_id))
+            async with Client("anon", api_id, api_hash) as client:
+                message = await client.get_messages(dummy_channel_id, int(file_id))
                 if message and message.media:
-                    path = await message.download_media()
+                    path = await message.download()
                     return path
-        file_path = download()
+        file_path = asyncio.run(download())
         if file_path:
             return send_file(file_path, as_attachment=True)
         else:
@@ -86,8 +85,8 @@ def dl(update: Update, context: CallbackContext):
                     for video_file in video_files:
                         try:
                             # Use the user bot to send the video file to the dummy channel
-                            with open(video_file, 'rb') as video:
-                                message = userbot.send_document(dummy_channel_id, video)
+                            with Client("userbot", api_id, api_hash) as userbot:
+                                message = userbot.send_document(dummy_channel_id, video_file)
                                 message_id = message.message_id
 
                                 # Provide the user with a link to download the file
