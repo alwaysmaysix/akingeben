@@ -4,17 +4,14 @@ import logging
 import time
 import asyncio
 import sys
-from flask import Flask, send_file
 from pyrogram import Client, errors
 from dotenv import load_dotenv
-from pyngrok import ngrok
-import threading
 from aiogram import Bot, Dispatcher, html
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.telegram import TelegramAPIServer
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart  # Import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 # Load environment variables from .env file
@@ -35,37 +32,10 @@ bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 dummy_channel_id = os.getenv('DUMMY_CHANNEL_ID')
 
 # Custom API server configuration
-custom_api_base = "http://localhost:8082"  # Replace with your custom API base URL
+custom_api_base = "http://localhost:8081"  # Use Docker's mapped port for the Telegram Bot API
 
 # Define the user bot globally
 userbot = None
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Server is running"
-
-@app.route('/download/<file_id>')
-def download_file(file_id):
-    try:
-        async def download():
-            async with Client("anon", api_id, api_hash) as client:
-                message = await client.get_messages(dummy_channel_id, int(file_id))
-                if message and message.media:
-                    path = await message.download()
-                    return path
-        file_path = asyncio.run(download())
-        if file_path:
-            return send_file(file_path, as_attachment=True)
-        else:
-            return "File not found", 404
-    except Exception as e:
-        logger.error(f"Error downloading file: {e}")
-        return "Error downloading file", 500
-
-def run_flask_app():
-    app.run(port=3000)
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
@@ -98,8 +68,7 @@ async def dl(message: Message):
                                 message_id = message.message_id
 
                                 # Provide the user with a link to download the file
-                                public_url = ngrok.connect(3000)
-                                download_link = f"{public_url}/download/{message_id}"
+                                download_link = f"http://localhost:8081/download/{message_id}"
                                 await message.answer(f'Download your video from {download_link}')
                             os.remove(video_file)  # Optionally delete the video file after sending
                         except errors.FloodWait as e:
@@ -157,12 +126,16 @@ async def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
-    # Start Flask server in a separate thread
-    threading.Thread(target=run_flask_app).start()
+    # Run the udocker command to pull the image and run the container
+    !pip install udocker > /dev/null
+    !udocker --allow-root install > /dev/null
+    !useradd -m user > /dev/null
     
-    # Start the ngrok tunnel after the Flask server is up and running
-    public_url = ngrok.connect(3000)
-    print(f'Public URL: {public_url}')
-
-    # Run the main function
+    # Pull the Telegram Bot API image
+    udocker("pull aiogram/telegram-bot-api:latest")
+    
+    # Use environment variables in the Docker run command
+    udocker(f"run -d -p 8081:8081 --name=telegram-bot-api --restart=always -v telegram-bot-api-data:/var/lib/telegram-bot-api -e TELEGRAM_API_ID={api_id} -e TELEGRAM_API_HASH={api_hash} aiogram/telegram-bot-api:latest")
+    
+    # Start the main function
     asyncio.run(main())
