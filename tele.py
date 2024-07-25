@@ -2,15 +2,19 @@ import os
 import subprocess
 import logging
 import time
-from telegram import Update, Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext
-from dotenv import load_dotenv
+import asyncio
+from flask import Flask, send_file
 from pyrogram import Client, errors
+from dotenv import load_dotenv
 from pyngrok import ngrok
 import threading
-from flask import Flask, send_file
-from aiohttp import ClientSession
-from aiogram.client.telegram import TelegramAPIServer, AiohttpSession
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ParseMode
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters import Command
+from aiogram.dispatcher.webhook import SendMessage
+from aiogram.types import Update
 
 # Load environment variables from .env file
 load_dotenv()
@@ -67,8 +71,8 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-def dl(update: Update, context: CallbackContext):
-    url = ' '.join(context.args)
+async def dl(message: types.Message):
+    url = message.get_args()
     if url:
         try:
             # Create input.txt with the URL
@@ -85,74 +89,48 @@ def dl(update: Update, context: CallbackContext):
                     for video_file in video_files:
                         try:
                             # Use the user bot to send the video file to the dummy channel
-                            with Client("userbot", api_id, api_hash) as userbot:
-                                message = userbot.send_document(dummy_channel_id, video_file)
+                            async with Client("userbot", api_id, api_hash) as userbot:
+                                message = await userbot.send_document(dummy_channel_id, video_file)
                                 message_id = message.message_id
 
                                 # Provide the user with a link to download the file
                                 public_url = ngrok.connect(3000)
                                 download_link = f"{public_url}/download/{message_id}"
-                                update.message.reply_text(f'Download your video from {download_link}')
+                                await message.reply(f'Download your video from {download_link}')
                             os.remove(video_file)  # Optionally delete the video file after sending
                         except errors.FloodWait as e:
                             logger.error(f"FloodWait error: {e}")
                             time.sleep(e.x)  # Wait before retrying
                         except Exception as e:
                             logger.error(f"Failed to send video: {e}")
-                            update.message.reply_text(f'Failed to send video: {e}')
+                            await message.reply(f'Failed to send video: {e}')
                 else:
-                    update.message.reply_text(f'No videos found after downloading from {url}.')
+                    await message.reply(f'No videos found after downloading from {url}.')
             else:
-                update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
+                await message.reply(f'Failed to download videos from {url}: {result.stderr}')
         except Exception as e:
-            update.message.reply_text(f'Failed to download videos from {url}: {e}')
+            await message.reply(f'Failed to download videos from {url}: {e}')
         finally:
             delete_input_file()  # Delete input.txt after processing
     else:
-        update.message.reply_text('Please provide a URL.')
+        await message.reply('Please provide a URL.')
 
-def main():
+async def main():
     global userbot
 
-    # Prompt the user to choose between using an existing session or creating a new one
-    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
-
-    if use_existing_session == 'yes':
-        userbot_session_string = input("Please enter the session string: ").strip()
-    else:
-        userbot_session_string = None
-
     # Initialize the user bot (Client)
-    if userbot_session_string:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
-    else:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
+    userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
+    await userbot.start()
 
-    userbot.start()
+    # Initialize the bot
+    bot = Bot(token=bot_token)
+    dp = Dispatcher(bot)
+    dp.middleware.setup(LoggingMiddleware())
 
-    # Custom API server configuration
-    custom_api_server = TelegramAPIServer.from_base('http://localhost:8082')
-    aiohttp_session = AiohttpSession(api=custom_api_server)
+    dp.register_message_handler(dl, commands=['dl'])
 
-    # Initialize the bot with the custom session
-    bot = Bot(token=bot_token, session=aiohttp_session)
-
-    # Initialize the updater and dispatcher with the custom bot
-    updater = Updater(bot=bot)
-    
-    # Log bot start
-    logger.info('Starting the bot...')
-    
-    dp = updater.dispatcher
-
-    # Add the /dl command handler
-    dp.add_handler(CommandHandler('dl', dl))
-
-    # Start the bot
-    updater.start_polling()
-    updater.idle()
-
-    userbot.stop()  # Ensure the user bot is stopped when the main program exits
+    # Start polling
+    await dp.start_polling()
 
 if __name__ == '__main__':
     # Start Flask server in a separate thread
@@ -162,4 +140,4 @@ if __name__ == '__main__':
     public_url = ngrok.connect(3000)
     print(f'Public URL: {public_url}')
     
-    main()
+    asyncio.run(main())
