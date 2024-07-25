@@ -3,6 +3,7 @@ import subprocess
 import logging
 import time
 import asyncio
+import sys
 from flask import Flask, send_file
 from pyrogram import Client, errors
 from dotenv import load_dotenv
