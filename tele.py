@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 from pyrogram import Client, errors
+from pyngrok import ngrok
 
 # Load environment variables from .env file
 load_dotenv()
@@ -39,14 +40,14 @@ def dl(update: Update, context: CallbackContext):
         try:
             # Create input.txt with the URL
             create_input_file(url)
-            
+
             # Call sb_scraper.py as a separate process
             result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
-            
+
             if result.returncode == 0:
                 # Assume videos are downloaded to the current directory by sb_scraper.py
                 video_files = [file for file in os.listdir() if file.endswith('.mp4')]
-                
+
                 if video_files:
                     for video_file in video_files:
                         try:
@@ -73,6 +74,7 @@ def dl(update: Update, context: CallbackContext):
             delete_input_file()  # Delete input.txt after processing
     else:
         update.message.reply_text('Please provide a URL.')
+
 def main():
     global userbot
 
@@ -110,4 +112,7 @@ def main():
     userbot.stop()  # Ensure the user bot is stopped when the main program exits
 
 if __name__ == '__main__':
+    # Start the ngrok tunnel for the public URL
+    public_url = ngrok.connect(3000)
+    print(f'Public URL: {public_url}')
     main()
