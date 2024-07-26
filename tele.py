@@ -125,5 +125,17 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-
+    # Run the udocker command to pull the image and run the container
+    pip install udocker > /dev/null
+    udocker --allow-root install > /dev/null
+    useradd -m user > /dev/null
+    
+    # Pull the Telegram Bot API image
+    udocker("pull aiogram/telegram-bot-api:latest")
+    
+    # Use environment variables in the Docker run command
+    udocker(f"run -d -p 8081:8081 --name=telegram-bot-api --restart=always -v telegram-bot-api-data:/var/lib/telegram-bot-api -e TELEGRAM_API_ID={api_id} -e TELEGRAM_API_HASH={api_hash} aiogram/telegram-bot-api:latest")
+    
+    # Start the main function
+    asyncio.run(main())
    
