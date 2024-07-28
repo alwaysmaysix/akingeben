@@ -1,18 +1,10 @@
 import os
 import subprocess
 import logging
-import time
-import asyncio
-import sys
-from pyrogram import Client, errors
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
-from aiogram import Bot, Dispatcher, html
-from aiogram.client.default import DefaultBotProperties
-from aiogram.client.telegram import TelegramAPIServer
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
-from aiogram.types import Message
+from pyrogram import Client, errors
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,10 +21,6 @@ api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-dummy_channel_id = os.getenv('DUMMY_CHANNEL_ID')
-
-# Custom API server configuration
-custom_api_base = "http://localhost:8081"  # Use Docker's mapped port for the Telegram Bot API
 
 # Define the user bot globally
 userbot = None
@@ -45,97 +33,81 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-async def dl(message: Message):
-    url = message.get_args()
+def dl(update: Update, context: CallbackContext):
+    url = ' '.join(context.args)
     if url:
         try:
             # Create input.txt with the URL
             create_input_file(url)
-
+            
             # Call sb_scraper.py as a separate process
             result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
-
+            
             if result.returncode == 0:
                 # Assume videos are downloaded to the current directory by sb_scraper.py
                 video_files = [file for file in os.listdir() if file.endswith('.mp4')]
-
+                
                 if video_files:
                     for video_file in video_files:
                         try:
-                            # Use the user bot to send the video file to the dummy channel
-                            async with Client("userbot", api_id, api_hash) as userbot:
-                                message = await userbot.send_document(dummy_channel_id, video_file)
-                                message_id = message.message_id
-
-                                # Provide the user with a link to download the file
-                                download_link = f"http://localhost:8081/download/{message_id}"
-                                await message.answer(f'Download your video from {download_link}')
+                            # Use the user bot to send the video file
+                            with open(video_file, 'rb') as video:
+                                update.message.reply_video(
+                                    video=video,
+                                    caption=f'Downloaded video from {url}'  # Optional caption
+                                )
                             os.remove(video_file)  # Optionally delete the video file after sending
                         except errors.FloodWait as e:
                             logger.error(f"FloodWait error: {e}")
                             time.sleep(e.x)  # Wait before retrying
                         except Exception as e:
                             logger.error(f"Failed to send video: {e}")
-                            await message.answer(f'Failed to send video: {e}')
+                            update.message.reply_text(f'Failed to send video: {e}')
                 else:
-                    await message.answer(f'No videos found after downloading from {url}.')
+                    update.message.reply_text(f'No videos found after downloading from {url}.')
             else:
-                await message.answer(f'Failed to download videos from {url}: {result.stderr}')
+                update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
         except Exception as e:
-            await message.answer(f'Failed to download videos from {url}: {e}')
+            update.message.reply_text(f'Failed to download videos from {url}: {e}')
         finally:
             delete_input_file()  # Delete input.txt after processing
     else:
-        await message.answer('Please provide a URL.')
-
-async def main() -> None:
+        update.message.reply_text('Please provide a URL.')
+def main():
     global userbot
 
+    # Prompt the user to choose between using an existing session or creating a new one
+    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
+
+    if use_existing_session == 'yes':
+        userbot_session_string = input("Please enter the session string: ").strip()
+    else:
+        userbot_session_string = None
+
     # Initialize the user bot (Client)
-    userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
-    await userbot.start()
+    if userbot_session_string:
+        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
+    else:
+        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
 
-    # Initialize the custom API server
-    custom_api_server = TelegramAPIServer.from_base(custom_api_base)
+    userbot.start()
 
-    # Initialize Bot instance with default bot properties which will be passed to all API calls
-    bot = Bot(token=bot_token, session=AiohttpSession(api=custom_api_server), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-
-    # Create dispatcher
-    dp = Dispatcher()
-
-    # Register command handlers
-    @dp.message(CommandStart())
-    async def command_start_handler(message: Message) -> None:
-        await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
-
-    @dp.message(Command("dl"))
-    async def dl_command_handler(message: Message) -> None:
-        await dl(message)
-
-    @dp.message()
-    async def echo_handler(message: Message) -> None:
-        try:
-            await message.send_copy(chat_id=message.chat.id)
-        except TypeError:
-            await message.answer("Nice try!")
-
-    # Start polling
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    # Run the udocker command to pull the image and run the container
-    pip install udocker > /dev/null
-    udocker --allow-root install > /dev/null
-    useradd -m user > /dev/null
+    # Initialize the updater and dispatcher
+    updater = Updater(bot_token)
     
-    # Pull the Telegram Bot API image
-    udocker("pull aiogram/telegram-bot-api:latest")
+    # Log bot start
+    logger.info('Starting the bot...')
     
-    # Use environment variables in the Docker run command
-    udocker(f"run -d -p 8081:8081 --name=telegram-bot-api --restart=always -v telegram-bot-api-data:/var/lib/telegram-bot-api -e TELEGRAM_API_ID={api_id} -e TELEGRAM_API_HASH={api_hash} aiogram/telegram-bot-api:latest")
-    
-    # Start the main function
-    asyncio.run(main())
-   
+    dp = updater.dispatcher
+
+    # Add the /dl command handler
+    dp.add_handler(CommandHandler('dl', dl))
+
+    # Start the bot
+    updater.start_polling()
+    updater.idle()
+
+    userbot.stop()  # Ensure the user bot is stopped when the main program exits
+
+if __name__ == '__main__':
+    main()
