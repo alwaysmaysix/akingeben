@@ -52,7 +52,8 @@ def send_media_files(update: Update, context: CallbackContext, media_type: str, 
     if media_files:
         for i in range(0, len(media_files), 10):
             update.message.reply_media_group(media_files[i:i + 10])
-                os.remove(media_file_path)
+            os.remove(media_file_path)  # Moved to correct indent level
+
 def cscraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     
@@ -108,8 +109,6 @@ def sb_scraper(update: Update, context: CallbackContext):
         update.message.reply_text(f'Failed to download videos from {url}: {e}')
     finally:
         delete_input_file()  # Delete input.txt after processing
-
-
 
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Hi! Use /cscraper <URL> or /sb_scraper <URL> to start the download process.')
