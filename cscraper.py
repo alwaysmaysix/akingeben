@@ -4,7 +4,7 @@ import re
 import time
 from sys import stdout, argv
 from hashlib import md5
-from scraping_utils.scraping_utils import compute_file_hashes, DownloadThread, multithread_download_urls_special, IMG_EXTS, VID_EXTS, TOO_MANY_REQUESTS, NOT_FOUND, THROTTLE_TIME
+from scraping_utils import compute_file_hashes, DownloadThread, multithread_download_urls_special, IMG_EXTS, VID_EXTS, TOO_MANY_REQUESTS, NOT_FOUND, THROTTLE_TIME
 
 POSTS_PER_FETCH = 50
 
