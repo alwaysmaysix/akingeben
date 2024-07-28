@@ -52,6 +52,10 @@ def send_media_files(update: Update, context: CallbackContext, media_type: str, 
     if media_files:
         for i in range(0, len(media_files), 10):
             update.message.reply_media_group(media_files[i:i + 10])
+            # Delete each file after sending it
+            for j in range(i, min(i + 10, len(media_files))):
+                media_file_path = os.path.join(folder_path, files[j])
+                os.remove(media_file_path)
 
 def cscraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
