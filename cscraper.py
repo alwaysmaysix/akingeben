@@ -171,5 +171,4 @@ if __name__ == '__main__':
         os.mkdir(dst)
         
     main(url, dst, (vid == 't' or vid == 'y'))
-    input('---Press enter to exit---')
     stdout.write('\n')
