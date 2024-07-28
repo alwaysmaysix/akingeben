@@ -52,11 +52,7 @@ def send_media_files(update: Update, context: CallbackContext, media_type: str, 
     if media_files:
         for i in range(0, len(media_files), 10):
             update.message.reply_media_group(media_files[i:i + 10])
-            # Delete each file after sending it
-            for j in range(i, min(i + 10, len(media_files))):
-                media_file_path = os.path.join(folder_path, files[j])
                 os.remove(media_file_path)
-
 def cscraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     
@@ -82,12 +78,38 @@ def sb_scraper(update: Update, context: CallbackContext):
         return
 
     update.message.reply_text('Running sb_scraper...')
-    # Call sb_scraper.py with parameters (assuming it also accepts similar parameters)
-    subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'])
-    update.message.reply_text('sb_scraper completed.')
-    # Send media files
-    send_media_files(update, context, 'Pics', './')  # Change this path to where sb_scraper saves Pics
-    send_media_files(update, context, 'Vids', './')  # Change this path to where sb_scraper saves Vids
+    
+    try:
+        # Call sb_scraper.py as a separate process
+        result = subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            # Assume videos are downloaded to the current directory by sb_scraper.py
+            video_files = [file for file in os.listdir() if file.endswith('.mp4')]
+            
+            if video_files:
+                for video_file in video_files:
+                    try:
+                        # Send the video file using the bot
+                        with open(video_file, 'rb') as video:
+                            update.message.reply_video(
+                                video=video,
+                                caption=f'Downloaded video from {url}'  # Optional caption
+                            )
+                        os.remove(video_file)  # Optionally delete the video file after sending
+                    except Exception as e:
+                        logger.error(f"Failed to send video: {e}")
+                        update.message.reply_text(f'Failed to send video: {e}')
+            else:
+                update.message.reply_text(f'No videos found after downloading from {url}.')
+        else:
+            update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
+    except Exception as e:
+        update.message.reply_text(f'Failed to download videos from {url}: {e}')
+    finally:
+        delete_input_file()  # Delete input.txt after processing
+
+
 
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Hi! Use /cscraper <URL> or /sb_scraper <URL> to start the download process.')
