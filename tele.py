@@ -1,10 +1,10 @@
 import os
 import subprocess
 import logging
+import time
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
-from pyrogram import Client, errors
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,9 +22,6 @@ api_hash = os.getenv('TELEGRAM_API_HASH')
 chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
-# Define the user bot globally
-userbot = None
-
 def create_input_file(url):
     with open('input.txt', 'w') as f:
         f.write(url)
@@ -37,29 +34,30 @@ def dl(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     if url:
         try:
+            # Ask the user which scraper to use
+            scraper_choice = input("Which scraper do you want to use? (sb/c): ").strip().lower()
+            scraper_script = 'sb_scraper.py' if scraper_choice == 'sb' else 'cscraper.py'
+
             # Create input.txt with the URL
             create_input_file(url)
             
-            # Call sb_scraper.py as a separate process
-            result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
+            # Call the selected scraper as a separate process
+            result = subprocess.run(['python', scraper_script], capture_output=True, text=True)
             
             if result.returncode == 0:
-                # Assume videos are downloaded to the current directory by sb_scraper.py
+                # Assume videos are downloaded to the current directory by the scraper
                 video_files = [file for file in os.listdir() if file.endswith('.mp4')]
                 
                 if video_files:
                     for video_file in video_files:
                         try:
-                            # Use the user bot to send the video file
+                            # Use the bot to send the video file
                             with open(video_file, 'rb') as video:
                                 update.message.reply_video(
                                     video=video,
                                     caption=f'Downloaded video from {url}'  # Optional caption
                                 )
                             os.remove(video_file)  # Optionally delete the video file after sending
-                        except errors.FloodWait as e:
-                            logger.error(f"FloodWait error: {e}")
-                            time.sleep(e.x)  # Wait before retrying
                         except Exception as e:
                             logger.error(f"Failed to send video: {e}")
                             update.message.reply_text(f'Failed to send video: {e}')
@@ -73,25 +71,8 @@ def dl(update: Update, context: CallbackContext):
             delete_input_file()  # Delete input.txt after processing
     else:
         update.message.reply_text('Please provide a URL.')
+
 def main():
-    global userbot
-
-    # Prompt the user to choose between using an existing session or creating a new one
-    use_existing_session = input("Do you want to use an existing Pyrogram session? (yes/no): ").strip().lower()
-
-    if use_existing_session == 'yes':
-        userbot_session_string = input("Please enter the session string: ").strip()
-    else:
-        userbot_session_string = None
-
-    # Initialize the user bot (Client)
-    if userbot_session_string:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash, session_string=userbot_session_string)
-    else:
-        userbot = Client("userbot", api_id=api_id, api_hash=api_hash)
-
-    userbot.start()
-
     # Initialize the updater and dispatcher
     updater = Updater(bot_token)
     
@@ -106,8 +87,6 @@ def main():
     # Start the bot
     updater.start_polling()
     updater.idle()
-
-    userbot.stop()  # Ensure the user bot is stopped when the main program exits
 
 if __name__ == '__main__':
     main()
