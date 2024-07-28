@@ -1,7 +1,7 @@
 import os
 import subprocess
 import logging
-from telegram import Update
+from telegram import Update, InputMediaPhoto, InputMediaVideo
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from dotenv import load_dotenv
 
@@ -29,7 +29,23 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-def dl(update: Update, context: CallbackContext):
+def send_media_files(update: Update, context: CallbackContext, media_type: str):
+    folder_path = os.path.join('./out', media_type)
+    files = os.listdir(folder_path)
+
+    media_files = []
+    for file_name in files:
+        file_path = os.path.join(folder_path, file_name)
+        if media_type == 'Pics':
+            media_files.append(InputMediaPhoto(open(file_path, 'rb')))
+        elif media_type == 'Vids':
+            media_files.append(InputMediaVideo(open(file_path, 'rb')))
+
+    if media_files:
+        for i in range(0, len(media_files), 10):
+            update.message.reply_media_group(media_files[i:i + 10])
+
+def cscraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
     
     # Check if URL is provided
@@ -37,32 +53,32 @@ def dl(update: Update, context: CallbackContext):
         update.message.reply_text('Please provide a URL.')
         return
 
-    # Create input file
-    create_input_file(url)
+    update.message.reply_text('Running cscraper...')
+    # Call cscraper.py with parameters
+    subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
+    update.message.reply_text('cscraper completed.')
+    # Send media files
+    send_media_files(update, context, 'Pics')
+    send_media_files(update, context, 'Vids')
 
-    # Prompt user to choose scraper
-    update.message.reply_text('Choose scraper: /cscraper or /sb_scraper')
+def sb_scraper(update: Update, context: CallbackContext):
+    url = ' '.join(context.args)
+    
+    # Check if URL is provided
+    if not url:
+        update.message.reply_text('Please provide a URL.')
+        return
 
-    # Define command handlers for cscraper and sb_scraper
-    def cscraper(update: Update, context: CallbackContext):
-        update.message.reply_text('Running cscraper...')
-        # Call cscraper.py with parameters
-        subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
-        update.message.reply_text('cscraper completed.')
-
-    def sb_scraper(update: Update, context: CallbackContext):
-        update.message.reply_text('Running sb_scraper...')
-        # Call sb_scraper.py with parameters (assuming it also accepts similar parameters)
-        subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'])
-        update.message.reply_text('sb_scraper completed.')
-
-    # Add command handlers to dispatcher
-    dispatcher = context.dispatcher
-    dispatcher.add_handler(CommandHandler('cscraper', cscraper))
-    dispatcher.add_handler(CommandHandler('sb_scraper', sb_scraper))
+    update.message.reply_text('Running sb_scraper...')
+    # Call sb_scraper.py with parameters
+    subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'])
+    update.message.reply_text('sb_scraper completed.')
+    # Send media files
+    send_media_files(update, context, 'Pics')
+    send_media_files(update, context, 'Vids')
 
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Hi! Use /dl <URL> to start the download process.')
+    update.message.reply_text('Hi! Use /cscraper <URL> or /sb_scraper <URL> to start the download process.')
 
 def main() -> None:
     updater = Updater(bot_token)
@@ -70,7 +86,8 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('dl', dl))
+    dispatcher.add_handler(CommandHandler('cscraper', cscraper))
+    dispatcher.add_handler(CommandHandler('sb_scraper', sb_scraper))
 
     updater.start_polling()
     updater.idle()
