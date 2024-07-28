@@ -29,15 +29,16 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-def send_media_files(update: Update, context: CallbackContext, media_type: str):
-    folder_path = os.path.join('./out', media_type)
+def send_media_files(update: Update, context: CallbackContext, media_type: str, folder_path: str):
+    # Check if the directory exists
     if not os.path.exists(folder_path):
-        update.message.reply_text(f"No {media_type} files found.")
+        update.message.reply_text(f'No media files found in {folder_path}.')
         return
 
     files = os.listdir(folder_path)
+
     if not files:
-        update.message.reply_text(f"No {media_type} files to send.")
+        update.message.reply_text(f'No media files found in {folder_path}.')
         return
 
     media_files = []
@@ -62,16 +63,11 @@ def cscraper(update: Update, context: CallbackContext):
 
     update.message.reply_text('Running cscraper...')
     # Call cscraper.py with parameters
-    result = subprocess.run(['python', 'cscraper.py', url, './out', 'yes'], capture_output=True, text=True)
+    subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
     update.message.reply_text('cscraper completed.')
-
-    # Check the output of cscraper.py to see if the download was successful
-    if '[main] INFO: Successfully downloaded' in result.stdout:
-        # Send media files
-        send_media_files(update, context, 'Pics')
-        send_media_files(update, context, 'Vids')
-    else:
-        update.message.reply_text('Download failed or no media files found.')
+    # Send media files
+    send_media_files(update, context, 'Pics', './Pics')
+    send_media_files(update, context, 'Vids', './Vids')
 
 def sb_scraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
@@ -83,16 +79,11 @@ def sb_scraper(update: Update, context: CallbackContext):
 
     update.message.reply_text('Running sb_scraper...')
     # Call sb_scraper.py with parameters (assuming it also accepts similar parameters)
-    result = subprocess.run(['python', 'sb_scraper.py', url, './out', 'yes'], capture_output=True, text=True)
+    subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'])
     update.message.reply_text('sb_scraper completed.')
-
-    # Check the output of sb_scraper.py to see if the download was successful
-    if '[main] INFO: Successfully downloaded' in result.stdout:
-        # Send media files
-        send_media_files(update, context, 'Pics')
-        send_media_files(update, context, 'Vids')
-    else:
-        update.message.reply_text('Download failed or no media files found.')
+    # Send media files
+    send_media_files(update, context, 'Pics', './')  # Change this path to where sb_scraper saves Pics
+    send_media_files(update, context, 'Vids', './')  # Change this path to where sb_scraper saves Vids
 
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Hi! Use /cscraper <URL> or /sb_scraper <URL> to start the download process.')
