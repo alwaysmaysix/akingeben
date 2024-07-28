@@ -52,11 +52,14 @@ def send_media_files(update: Update, context: CallbackContext, media_type: str, 
     if media_files:
         for i in range(0, len(media_files), 10):
             update.message.reply_media_group(media_files[i:i + 10])
-            os.remove(media_files)  # Moved to correct indent level
+
+    # Correct the indentation here
+    for file in media_files:
+        os.remove(file.media.file_id)  # Assuming file_id is used to identify files
 
 def cscraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
-    
+
     # Check if URL is provided
     if not url:
         update.message.reply_text('Please provide a URL.')
@@ -72,25 +75,22 @@ def cscraper(update: Update, context: CallbackContext):
 
 def sb_scraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
-    if url:
-        try:
-            # Create input.txt with the URL
-            create_input_file(url)
-    # Check if URL is provided
     if not url:
         update.message.reply_text('Please provide a URL.')
         return
 
+    # Create input.txt with the URL
+    create_input_file(url)
     update.message.reply_text('Running sb_scraper...')
-    
+
     try:
         # Call sb_scraper.py as a separate process
         result = subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'], capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             # Assume videos are downloaded to the current directory by sb_scraper.py
             video_files = [file for file in os.listdir() if file.endswith('.mp4')]
-            
+
             if video_files:
                 for video_file in video_files:
                     try:
