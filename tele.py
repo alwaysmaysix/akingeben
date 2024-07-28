@@ -72,7 +72,10 @@ def cscraper(update: Update, context: CallbackContext):
 
 def sb_scraper(update: Update, context: CallbackContext):
     url = ' '.join(context.args)
-    
+    if url:
+        try:
+            # Create input.txt with the URL
+            create_input_file(url)
     # Check if URL is provided
     if not url:
         update.message.reply_text('Please provide a URL.')
