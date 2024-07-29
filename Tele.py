@@ -30,6 +30,10 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
+def delete_already_dl_file():
+    if os.path.exists('already_dl.txt'):
+        os.remove('already_dl.txt')
+
 async def send_media_files(client, message, media_type, folder_path):
     # Check if the directory exists
     if not os.path.exists(folder_path):
@@ -75,6 +79,8 @@ async def cscraper(client, message):
     # Send media files
     await send_media_files(client, message, 'Pics', './Pics')
     await send_media_files(client, message, 'Vids', './Vids')
+    # Delete already_dl.txt file
+    delete_already_dl_file()
 
 @app.on_message(filters.command("sb_scraper"))
 async def sb_scraper(client, message):
@@ -102,7 +108,8 @@ async def sb_scraper(client, message):
                         await client.send_video(
                             chat_id=message.chat.id,
                             video=video_file,
-                            caption=f'Downloaded video from {url}'  # Optional caption
+                            caption=f'Downloaded video from {url}',  # Optional caption
+                            supports_streaming=True
                         )
                         os.remove(video_file)  # Optionally delete the video file after sending
                     except Exception as e:
@@ -116,6 +123,7 @@ async def sb_scraper(client, message):
         await message.reply_text(f'Failed to download videos from {url}: {e}')
     finally:
         delete_input_file()  # Delete input.txt after processing
+        delete_already_dl_file()  # Delete already_dl.txt after processing
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
