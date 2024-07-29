@@ -111,8 +111,7 @@ def get_highest_quality_video_url(html):
 for line in lines:
     incaseofplaylist = line
     line = remove_country_subdomain(line)
-    if any(line[:32] == url[:32] for url in al_dl_urls):
-        print(f"The URL {line.strip()} already exists in already_dl.txt")
+
 
 al_dl_urls = [remove_country_subdomain(url) for url in al_dl_urls]
 
@@ -486,90 +485,92 @@ for line in lines:
 
 
     #dl vid
-    # Define the maximum number of retries and the initial delay
-    max_retries = 3
-    retry_delay = 5  # 5 seconds delay
-    attempt = 0
-    download_successful = False
-    current_quality_url = video_url
+# Define the maximum number of retries and the initial delay
+max_retries = 3
+retry_delay = 5  # 5 seconds delay
+attempt = 0
+download_successful = False
+current_quality_url = video_url
 
-    # Loop for the maximum number of retries
-    while attempt < max_retries:
-        try:
-            response = scraper.get(current_quality_url, stream=True)
-            total_size = int(response.headers.get('Content-Length', 0))
+# Loop for the maximum number of retries
+while attempt < max_retries:
+    try:
+        response = scraper.get(current_quality_url, stream=True)
+        total_size = int(response.headers.get('Content-Length', 0))
 
-            if response.status_code == 200:
-                counter = 1
-                base_filename = f'{uploader_name} - {video_title_text}'
-                video_filename = f'{base_filename}.mp4'
+        if response.status_code == 200:
+            counter = 1
+            base_filename = f'{uploader_name} - {video_title_text}'
+            video_filename = f'{base_filename}.mp4'
 
-                while os.path.exists(video_filename):
-                    video_filename = f'{base_filename} ({counter}).mp4'
-                    counter += 1
+            while os.path.exists(video_filename):
+                video_filename = f'{base_filename} ({counter}).mp4'
+                counter += 1
 
-                with open(video_filename, 'wb') as f:
-                    with tqdm(total=total_size, unit='B', unit_scale=True, desc="Downloading video") as pbar:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                            pbar.update(len(chunk))
+            with open(video_filename, 'wb') as f:
+                with tqdm(total=total_size, unit='B', unit_scale=True, desc="Downloading video") as pbar:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        pbar.update(len(chunk))
 
-                if pbar.n == total_size:
-                    print(f'Video downloaded successfully.' )
-                    download_successful = True
-                    with open(already_dl_path, 'a') as al_dl_file:
-                        al_dl_file.write('\n' + line)
-                    break  # Break out of the loop if download is successful
-                else:
-                    raise Exception("Download incomplete")
-        except Exception as e:
-            print(f"Attempt {attempt + 1} failed: {e}")
-            attempt += 1
-            if attempt < max_retries:
-                print(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
+            if pbar.n == total_size:
+                print(f'Video downloaded successfully.')
+                download_successful = True
+                # Update already_dl.txt here
+                with open(already_dl_path, 'a') as al_dl_file:
+                    al_dl_file.write(line + '\n')
+                break  # Break out of the loop if download is successful
+            else:
+                raise Exception("Download incomplete")
+    except Exception as e:
+        print(f"Attempt {attempt + 1} failed: {e}")
+        attempt += 1
+        if attempt < max_retries:
+            print(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
 
-    # If highest quality download fails, attempt second highest quality once
-    if not download_successful and second_best_quality_url:
-        print("Attempting to download second highest quality video.")
-        try:
-            response = scraper.get(second_best_quality_url, stream=True)
-            total_size = int(response.headers.get('Content-Length', 0))
+# If highest quality download fails, attempt second highest quality once
+if not download_successful and second_best_quality_url:
+    print("Attempting to download second highest quality video.")
+    try:
+        response = scraper.get(second_best_quality_url, stream=True)
+        total_size = int(response.headers.get('Content-Length', 0))
 
-            if response.status_code == 200:
-                counter = 1
-                base_filename += ' - lower quality'
-                video_filename = f'{base_filename}.mp4'
+        if response.status_code == 200:
+            counter = 1
+            base_filename += ' - lower quality'
+            video_filename = f'{base_filename}.mp4'
 
-                while os.path.exists(video_filename):
-                    video_filename = f'{base_filename} ({counter}).mp4'
-                    counter += 1
+            while os.path.exists(video_filename):
+                video_filename = f'{base_filename} ({counter}).mp4'
+                counter += 1
 
-                with open(video_filename, 'wb') as f:
-                    with tqdm(total=total_size, unit='B', unit_scale=True, desc="Downloading lower quality video") as pbar:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                            pbar.update(len(chunk))
+            with open(video_filename, 'wb') as f:
+                with tqdm(total=total_size, unit='B', unit_scale=True, desc="Downloading lower quality video") as pbar:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        pbar.update(len(chunk))
 
-                if pbar.n == total_size:
-                    print(f'Second highest quality video downloaded successfully.')
-                    with open(already_dl_path, 'a') as al_dl_file:
-                        al_dl_file.write('\n' + line)
-                else:
-                    raise Exception("Download incomplete - lower quality")
-        except Exception as e:
-            error_message = f"Failed to download: {e}"
-            print(error_message)
-            
-            # Create failed_dl.txt if it doesn't exist
-            if not os.path.exists(failed_dl_path):
-                with open(failed_dl_path, 'w') as failed_dl_file:
-                    pass
+            if pbar.n == total_size:
+                print(f'Second highest quality video downloaded successfully.')
+                # Update already_dl.txt here
+                with open(already_dl_path, 'a') as al_dl_file:
+                    al_dl_file.write(line + '\n')
+            else:
+                raise Exception("Download incomplete - lower quality")
+    except Exception as e:
+        error_message = f"Failed to download: {e}"
+        print(error_message)
+        
+        # Create failed_dl.txt if it doesn't exist
+        if not os.path.exists(failed_dl_path):
+            with open(failed_dl_path, 'w') as failed_dl_file:
+                pass
 
-            # Check for duplication before writing to failed_dl.txt
-            with open(failed_dl_path, 'r') as failed_dl_file:
-                existing_lines = failed_dl_file.readlines()
+        # Check for duplication before writing to failed_dl.txt
+        with open(failed_dl_path, 'r') as failed_dl_file:
+            existing_lines = failed_dl_file.readlines()
 
-            if line + '\n' not in existing_lines:
-                with open(failed_dl_path, 'a') as failed_dl_file:
-                    failed_dl_file.write(line + '\n')
+        if line + '\n' not in existing_lines:
+            with open(failed_dl_path, 'a') as failed_dl_file:
+                failed_dl_file.write(line + '\n')
