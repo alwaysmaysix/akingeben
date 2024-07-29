@@ -1,8 +1,8 @@
 import os
 import subprocess
 import logging
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from pyrogram import Client, filters
+from pyrogram.types import InputMediaPhoto, InputMediaVideo
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 # Load API credentials from environment variables
 api_id = os.getenv('TELEGRAM_API_ID')
 api_hash = os.getenv('TELEGRAM_API_HASH')
-chat_id = os.getenv('TELEGRAM_CHAT_ID')  # The chat ID of the group or channel
 bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+
+app = Client("my_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 def create_input_file(url):
     with open('input.txt', 'w') as f:
@@ -29,59 +30,96 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-def dl(update: Update, context: CallbackContext):
-    url = ' '.join(context.args)
-    if url:
-        try:
-            # Create input.txt with the URL
-            create_input_file(url)
-            
-            # Call sb_scraper.py as a separate process
-            result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                # Assume videos are downloaded to the current directory by sb_scraper.py
-                video_files = [file for file in os.listdir() if file.endswith('.mp4')]
-                
-                if video_files:
-                    for video_file in video_files:
-                        try:
-                            # Use the bot to send the video file
-                            with open(video_file, 'rb') as video:
-                                update.message.reply_video(
-                                    video=video,
-                                    caption=f'Downloaded video from {url}'  # Optional caption
-                                )
-                            os.remove(video_file)  # Optionally delete the video file after sending
-                        except Exception as e:
-                            logger.error(f"Failed to send video: {e}")
-                            update.message.reply_text(f'Failed to send video: {e}')
-                else:
-                    update.message.reply_text(f'No videos found after downloading from {url}.')
+async def send_media_files(client, message, media_type, folder_path):
+    # Check if the directory exists
+    if not os.path.exists(folder_path):
+        await message.reply_text(f'No media files found in {folder_path}.')
+        return
+
+    files = os.listdir(folder_path)
+
+    if not files:
+        await message.reply_text(f'No media files found in {folder_path}.')
+        return
+
+    media_files = []
+    for file_name in files:
+        file_path = os.path.join(folder_path, file_name)
+        if media_type == 'Pics':
+            media_files.append(InputMediaPhoto(file_path))
+        elif media_type == 'Vids':
+            media_files.append(InputMediaVideo(file_path))
+
+    if media_files:
+        for i in range(0, len(media_files), 10):
+            await client.send_media_group(chat_id=message.chat.id, media=media_files[i:i + 10])
+
+    # Remove files after sending
+    for file_name in files:
+        file_path = os.path.join(folder_path, file_name)
+        os.remove(file_path)
+
+@app.on_message(filters.command("cscraper"))
+async def cscraper(client, message):
+    url = ' '.join(message.command[1:])
+
+    # Check if URL is provided
+    if not url:
+        await message.reply_text('Please provide a URL.')
+        return
+
+    await message.reply_text('Running cscraper...')
+    # Call cscraper.py with parameters
+    subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
+    await message.reply_text('cscraper completed.')
+    # Send media files
+    await send_media_files(client, message, 'Pics', './Pics')
+    await send_media_files(client, message, 'Vids', './Vids')
+
+@app.on_message(filters.command("sb_scraper"))
+async def sb_scraper(client, message):
+    url = ' '.join(message.command[1:])
+    if not url:
+        await message.reply_text('Please provide a URL.')
+        return
+
+    # Create input.txt with the URL
+    create_input_file(url)
+    await message.reply_text('Running sb_scraper...')
+
+    try:
+        # Call sb_scraper.py as a separate process
+        result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            # Assume videos are downloaded to the current directory by sb_scraper.py
+            video_files = [file for file in os.listdir() if file.endswith('.mp4')]
+
+            if video_files:
+                for video_file in video_files:
+                    try:
+                        # Send the video file using the bot
+                        await client.send_video(
+                            chat_id=message.chat.id,
+                            video=video_file,
+                            caption=f'Downloaded video from {url}'  # Optional caption
+                        )
+                        os.remove(video_file)  # Optionally delete the video file after sending
+                    except Exception as e:
+                        logger.error(f"Failed to send video: {e}")
+                        await message.reply_text(f'Failed to send video: {e}')
             else:
-                update.message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
-        except Exception as e:
-            update.message.reply_text(f'Failed to download videos from {url}: {e}')
-        finally:
-            delete_input_file()  # Delete input.txt after processing
-    else:
-        update.message.reply_text('Please provide a URL.')
+                await message.reply_text(f'No videos found after downloading from {url}.')
+        else:
+            await message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
+    except Exception as e:
+        await message.reply_text(f'Failed to download videos from {url}: {e}')
+    finally:
+        delete_input_file()  # Delete input.txt after processing
 
-def main():
-    # Initialize the updater and dispatcher
-    updater = Updater(bot_token)
-    
-    # Log bot start
-    logger.info('Starting the bot...')
-    
-    dp = updater.dispatcher
-
-    # Add the /dl command handler
-    dp.add_handler(CommandHandler('dl', dl))
-
-    # Start the bot
-    updater.start_polling()
-    updater.idle()
+@app.on_message(filters.command("start"))
+async def start(client, message):
+    await message.reply_text('Hi! Use /cscraper <URL> or /sb_scraper <URL> to start the download process.')
 
 if __name__ == '__main__':
-    main()
+    app.run()
