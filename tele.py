@@ -1,6 +1,7 @@
 import os
 import subprocess
 import logging
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InputMediaPhoto, InputMediaVideo
 from dotenv import load_dotenv
@@ -30,51 +31,53 @@ def delete_input_file():
     if os.path.exists('input.txt'):
         os.remove('input.txt')
 
-async def send_media_files(client, message, media_type, folder_path):
-    # Check if the directory exists
+async def progress(current, total, message, action, file_name):
+    await message.edit_text(f"{action} {file_name}: {current * 100 / total:.1f}%")
+
+async def send_video_files(client, message, folder_path, delay=5):
     if not os.path.exists(folder_path):
         await message.reply_text(f'No media files found in {folder_path}.')
         return
 
     files = os.listdir(folder_path)
-
     if not files:
         await message.reply_text(f'No media files found in {folder_path}.')
         return
 
-    media_files = []
     for file_name in files:
         file_path = os.path.join(folder_path, file_name)
-        if media_type == 'Pics':
-            media_files.append(InputMediaPhoto(file_path))
-        elif media_type == 'Vids':
-            media_files.append(InputMediaVideo(file_path))
-
-    if media_files:
-        for i in range(0, len(media_files), 10):
-            await client.send_media_group(chat_id=message.chat.id, media=media_files[i:i + 10])
-
-    # Remove files after sending
-    for file_name in files:
-        file_path = os.path.join(folder_path, file_name)
-        os.remove(file_path)
+        try:
+            status_message = await message.reply_text(f"Uploading {file_name}...")
+            await client.send_video(
+                chat_id=message.chat.id,
+                video=file_path,
+                caption=f'Downloaded video from {file_name}',
+                file_name=file_name,
+                supports_streaming=True,
+                progress=progress,
+                progress_args=(status_message, 'Uploading', file_name)
+            )
+            os.remove(file_path)
+            await asyncio.sleep(delay)
+        except Exception as e:
+            logger.error(f"Failed to send video {file_name}: {e}")
+            await message.reply_text(f'Failed to send video {file_name}: {e}')
 
 @app.on_message(filters.command("cscraper"))
 async def cscraper(client, message):
     url = ' '.join(message.command[1:])
-
-    # Check if URL is provided
     if not url:
         await message.reply_text('Please provide a URL.')
         return
 
-    await message.reply_text('Running cscraper...')
-    # Call cscraper.py with parameters
-    subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
-    await message.reply_text('cscraper completed.')
-    # Send media files
-    await send_media_files(client, message, 'Pics', './Pics')
-    await send_media_files(client, message, 'Vids', './Vids')
+    status_message = await message.reply_text(f"Downloading from {url}...")
+    try:
+        subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
+        await status_message.edit_text('cscraper completed.')
+        await send_video_files(client, message, './Pics')
+        await send_video_files(client, message, './Vids')
+    except Exception as e:
+        await status_message.edit_text(f"cscraper failed: {e}")
 
 @app.on_message(filters.command("sb_scraper"))
 async def sb_scraper(client, message):
@@ -83,39 +86,25 @@ async def sb_scraper(client, message):
         await message.reply_text('Please provide a URL.')
         return
 
-    # Create input.txt with the URL
     create_input_file(url)
-    await message.reply_text('Running sb_scraper...')
+    status_message = await message.reply_text(f"Downloading from {url}...")
 
     try:
-        # Call sb_scraper.py as a separate process
         result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
 
         if result.returncode == 0:
-            # Assume videos are downloaded to the current directory by sb_scraper.py
             video_files = [file for file in os.listdir() if file.endswith('.mp4')]
-
             if video_files:
                 for video_file in video_files:
-                    try:
-                        # Send the video file using the bot
-                        await client.send_video(
-                            chat_id=message.chat.id,
-                            video=video_file,
-                            caption=f'Downloaded video from {url}'  # Optional caption
-                        )
-                        os.remove(video_file)  # Optionally delete the video file after sending
-                    except Exception as e:
-                        logger.error(f"Failed to send video: {e}")
-                        await message.reply_text(f'Failed to send video: {e}')
+                    await send_video_files(client, message, video_file)
             else:
-                await message.reply_text(f'No videos found after downloading from {url}.')
+                await status_message.edit_text(f'No videos found after downloading from {url}.')
         else:
-            await message.reply_text(f'Failed to download videos from {url}: {result.stderr}')
+            await status_message.edit_text(f'Failed to download videos from {url}: {result.stderr}')
     except Exception as e:
-        await message.reply_text(f'Failed to download videos from {url}: {e}')
+        await status_message.edit_text(f'Failed to download videos from {url}: {e}')
     finally:
-        delete_input_file()  # Delete input.txt after processing
+        delete_input_file()
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
