@@ -108,10 +108,6 @@ def get_highest_quality_video_url(html):
 
     return None
 
-for line in lines:
-    incaseofplaylist = line
-    line = remove_country_subdomain(line)
-
 
 al_dl_urls = [remove_country_subdomain(url) for url in al_dl_urls]
 
