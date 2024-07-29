@@ -1,8 +1,10 @@
 import os
 import subprocess
 import logging
+from moviepy.editor import VideoFileClip
 from pyrogram import Client, filters
-from pyrogram.types import InputMediaPhoto, InputMediaVideo
+from pyrogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
+from pyrogram.raw.types import DocumentAttributeVideo
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -34,6 +36,13 @@ def delete_already_dl_file():
     if os.path.exists('already_dl.txt'):
         os.remove('already_dl.txt')
 
+def get_video_attributes(video_path):
+    clip = VideoFileClip(video_path)
+    duration = int(clip.duration)
+    width, height = clip.size
+    clip.close()
+    return duration, width, height
+
 async def send_media_files(client, message, media_type, folder_path):
     # Check if the directory exists
     if not os.path.exists(folder_path):
@@ -52,7 +61,16 @@ async def send_media_files(client, message, media_type, folder_path):
         if media_type == 'Pics':
             media_files.append(InputMediaPhoto(file_path))
         elif media_type == 'Vids':
-            media_files.append(InputMediaVideo(file_path))
+            duration, width, height = get_video_attributes(file_path)
+            media_files.append(
+                InputMediaVideo(
+                    media=file_path,
+                    duration=duration,
+                    width=width,
+                    height=height,
+                    supports_streaming=True
+                )
+            )
 
     if media_files:
         for i in range(0, len(media_files), 10):
@@ -104,12 +122,17 @@ async def sb_scraper(client, message):
             if video_files:
                 for video_file in video_files:
                     try:
+                        # Get video attributes
+                        duration, width, height = get_video_attributes(video_file)
                         # Send the video file using the bot
                         await client.send_video(
                             chat_id=message.chat.id,
                             video=video_file,
                             caption=f'Downloaded video from {url}',  # Optional caption
-                            supports_streaming=True
+                            supports_streaming=True,
+                            duration=duration,
+                            width=width,
+                            height=height
                         )
                         os.remove(video_file)  # Optionally delete the video file after sending
                     except Exception as e:
