@@ -89,7 +89,7 @@ async def sb_scraper(client, message):
 
     try:
         # Call sb_scraper.py as a separate process
-        result = subprocess.run(['python', 'sb_scraper.py', url, './', 'yes'], capture_output=True, text=True)
+        result = subprocess.run(['python', 'sb_scraper.py'], capture_output=True, text=True)
 
         if result.returncode == 0:
             # Assume videos are downloaded to the current directory by sb_scraper.py
