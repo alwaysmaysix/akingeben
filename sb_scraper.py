@@ -74,7 +74,7 @@ for i, line in enumerate(lines):
         lines[i] = line.replace('www.', '')
 
 def remove_country_subdomain(url):
-    return re.sub(r'https?://(\w+\.)?spankbang\.com/', 'https://spankbang.com/', url)
+    return re.sub(r'https?://(\w+\.)?spankbang\.com/', 'https://spankbang.party/', url)
 
 second_best_quality_url = None
 def get_highest_quality_video_url(html):
@@ -108,6 +108,11 @@ def get_highest_quality_video_url(html):
 
     return None
 
+for line in lines:
+    incaseofplaylist = line
+    line = remove_country_subdomain(line)
+    if any(line[:32] == url[:32] for url in al_dl_urls):
+        print(f"The URL {line.strip()} already exists in already_dl.txt")
 
 al_dl_urls = [remove_country_subdomain(url) for url in al_dl_urls]
 
@@ -149,7 +154,7 @@ def scrape_profile(url):
         videos_found = False
 
         while retry_count < max_retries and not videos_found:
-            page_url = f"https://spankbang.com/profile/{username}?o=new&page={page}"
+            page_url = f"https://spankbang.party/profile/{username}?o=new&page={page}"
             #print(page_url)  # Debug: print the page URL
 
             scraper = cloudscraper.create_scraper()
@@ -162,7 +167,7 @@ def scrape_profile(url):
                 videos_found = True
                 for item in video_items:
                     if 'href' in item.attrs:
-                        video_url = 'https://spankbang.com' + item['href']
+                        video_url = 'https://spankbang.party' + item['href']
                         profile_urls.append(video_url)
 
             else:
@@ -209,14 +214,14 @@ def scrape_channel(url):
 
     # First, find out the total number of pages
     scraper = cloudscraper.create_scraper()
-    initial_url = f"https://spankbang.com/{channel_code}/channel/{channel_name}/1/"
+    initial_url = f"https://spankbang.party/{channel_code}/channel/{channel_name}/1/"
     html = scraper.get(initial_url).text
     soup = BeautifulSoup(html, 'html.parser')
     last_page_link = soup.find('li', {'class': 'next'}).find_previous_sibling('li')
     total_pages = int(last_page_link.text) if last_page_link and last_page_link.text.isdigit() else 1
 
     while page <= total_pages:
-        page_url = f"https://spankbang.com/{channel_code}/channel/{channel_name}/{page}/"
+        page_url = f"https://spankbang.party/{channel_code}/channel/{channel_name}/{page}/"
         successful = False
 
         while not successful:
@@ -229,7 +234,7 @@ def scrape_channel(url):
                     successful = True
                     for item in video_items:
                         if 'href' in item.attrs:
-                            video_url = 'https://spankbang.com' + item['href']
+                            video_url = 'https://spankbang.party' + item['href']
                             channel_urls.append(video_url)
                 else:
                     print(f"No video items found on page {page}, retrying.")
@@ -267,7 +272,7 @@ for line in lines:
     line = line.strip()
     line_num+=1
     url = remove_country_subdomain(line)
-    if 'https://spankbang.com/' not in url and 'http://spankbang.com/' not in url:
+    if 'https://spankbang.party/' not in url and 'http://spankbang.party/' not in url:
         print("SpankBang is not in line " + str(line_num))
         print(url)
         continue
@@ -315,7 +320,7 @@ for line in lines:
             html_filtered = [line.replace('<a href="', '') for line in html_filtered] #remove <a href="
             for i, line in enumerate(html_filtered):
                 html_filtered[i] = line.split('\" class=\"n\"', 1)[0]
-            html_filtered = ['https://spankbang.com' + line.replace(' ', '') for line in html_filtered]
+            html_filtered = ['https://spankbang.party' + line.replace(' ', '') for line in html_filtered]
             # Write html_filtered lines to a txt file named after title
             with open(title + " - " + curator + '.txt', 'a') as f:
                 for line in html_filtered:
