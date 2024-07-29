@@ -88,24 +88,13 @@ def get_highest_quality_video_url(html):
             stream_data_str = stream_data_str.replace("'", '"')
             stream_data = json.loads(stream_data_str)
             
-            available_qualities = ['1080p', '720p', '480p', '320p', '240p']
+            available_qualities = ['480p', '320p', '240p']
             found_qualities = [q for q in available_qualities if stream_data.get(q)]
 
             if found_qualities:
-                # Prompt the user to select the desired quality
-                print("Available qualities:")
-                for idx, quality in enumerate(found_qualities, start=1):
-                    print(f"{idx}. {quality}")
+                # Set the highest quality URL
+                highest_quality_url = stream_data[found_qualities[0]][0]
 
-                choice = int(input("Select the desired quality (number): ")) - 1
-
-                if choice < 0 or choice >= len(found_qualities):
-                    raise ValueError("Invalid choice")
-
-                # Set the user-selected quality as the highest quality URL
-                selected_quality = found_qualities[choice]
-                highest_quality_url = stream_data[selected_quality][0]
-                
                 # Set the second highest quality URL if available
                 if len(found_qualities) > 1:
                     second_best_quality_url = stream_data[found_qualities[1]][0]
@@ -118,6 +107,7 @@ def get_highest_quality_video_url(html):
             print("JSON decode error:", e)
 
     return None
+
 for line in lines:
     incaseofplaylist = line
     line = remove_country_subdomain(line)
