@@ -1,10 +1,11 @@
 import os
 import subprocess
 import logging
+import asyncio
 from moviepy.editor import VideoFileClip
 from pyrogram import Client, filters
-from pyrogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
-from pyrogram.raw.types import DocumentAttributeVideo
+from pyrogram.types import InputMediaPhoto, InputMediaVideo
+from pyrogram.errors import FloodWait
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -74,7 +75,15 @@ async def send_media_files(client, message, media_type, folder_path):
 
     if media_files:
         for i in range(0, len(media_files), 10):
-            await client.send_media_group(chat_id=message.chat.id, media=media_files[i:i + 10])
+            try:
+                await client.send_media_group(chat_id=message.chat.id, media=media_files[i:i + 10])
+                await asyncio.sleep(2)  # Introduce a small delay between batches
+            except FloodWait as e:
+                logger.warning(f"Flood wait exception: waiting for {e.value} seconds.")
+                await asyncio.sleep(e.value)  # Wait for the specified time before continuing
+            except Exception as e:
+                logger.error(f"Failed to send media group: {e}")
+                await message.reply_text(f"Failed to send media group: {e}")
 
     # Remove files after sending
     for file_name in files:
@@ -135,6 +144,9 @@ async def sb_scraper(client, message):
                             height=height
                         )
                         os.remove(video_file)  # Optionally delete the video file after sending
+                    except FloodWait as e:
+                        logger.warning(f"Flood wait exception: waiting for {e.value} seconds.")
+                        await asyncio.sleep(e.value)  # Wait for the specified time before continuing
                     except Exception as e:
                         logger.error(f"Failed to send video: {e}")
                         await message.reply_text(f'Failed to send video: {e}')
