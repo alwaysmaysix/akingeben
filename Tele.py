@@ -38,11 +38,15 @@ def delete_already_dl_file():
         os.remove('already_dl.txt')
 
 def get_video_attributes(video_path):
-    clip = VideoFileClip(video_path)
-    duration = int(clip.duration)
-    width, height = clip.size
-    clip.close()
-    return duration, width, height
+    try:
+        clip = VideoFileClip(video_path)
+        duration = int(clip.duration)
+        width, height = clip.size
+        clip.close()
+        return duration, width, height
+    except Exception as e:
+        logger.error(f"Error getting video attributes for {video_path}: {e}")
+        return None, None, None
 
 async def send_media_files(client, message, media_type, folder_path):
     # Check if the directory exists
@@ -63,15 +67,16 @@ async def send_media_files(client, message, media_type, folder_path):
             media_files.append(InputMediaPhoto(file_path))
         elif media_type == 'Vids':
             duration, width, height = get_video_attributes(file_path)
-            media_files.append(
-                InputMediaVideo(
-                    media=file_path,
-                    duration=duration,
-                    width=width,
-                    height=height,
-                    supports_streaming=True
+            if duration and width and height:
+                media_files.append(
+                    InputMediaVideo(
+                        media=file_path,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        supports_streaming=True
+                    )
                 )
-            )
 
     if media_files:
         for i in range(0, len(media_files), 10):
@@ -133,17 +138,18 @@ async def sb_scraper(client, message):
                     try:
                         # Get video attributes
                         duration, width, height = get_video_attributes(video_file)
-                        # Send the video file using the bot
-                        await client.send_video(
-                            chat_id=message.chat.id,
-                            video=video_file,
-                            caption=f'Downloaded video from {url}',  # Optional caption
-                            supports_streaming=True,
-                            duration=duration,
-                            width=width,
-                            height=height
-                        )
-                        os.remove(video_file)  # Optionally delete the video file after sending
+                        if duration and width and height:
+                            # Send the video file using the bot
+                            await client.send_video(
+                                chat_id=message.chat.id,
+                                video=video_file,
+                                caption=f'Downloaded video from {url}',  # Optional caption
+                                supports_streaming=True,
+                                duration=duration,
+                                width=width,
+                                height=height
+                            )
+                            os.remove(video_file)  # Optionally delete the video file after sending
                     except FloodWait as e:
                         logger.warning(f"Flood wait exception: waiting for {e.value} seconds.")
                         await asyncio.sleep(e.value)  # Wait for the specified time before continuing
