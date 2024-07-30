@@ -95,7 +95,7 @@ async def cscraper(client, message):
     subprocess.run(['python', 'cscraper.py', url, './', 'yes'])
     await message.reply_text('cscraper completed.')
     # Send media files
-    await send_media_files(client, message, 'Pics', './Pics')
+   
     await send_media_files(client, message, 'Vids', './Vids')
     # Delete already_dl.txt file
     delete_already_dl_file()
