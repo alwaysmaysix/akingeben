@@ -122,11 +122,10 @@ lines = [remove_country_subdomain(line.strip()) for line in lines]
 lines = [line for line in lines if not any(line[:32] == url[:32] for url in al_dl_urls)]
 
 def page_exists(url):
-    scraper = cloudscraper.create_scraper()
     for _ in range(7):
         try:
-            
-            response = scraper.head(url, timeout=10)
+            scraper = cloudscraper.create_scraper()
+            response = scraper.head(url, timeout=5)
             return response.status_code < 400
         except (scraper.ConnectionError, scraper.Timeout):
             pass
